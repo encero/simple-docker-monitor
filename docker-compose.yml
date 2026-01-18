@@ -1,0 +1,17 @@
+services:
+  docker-monitor:
+    build: .
+    image: docker-monitor:latest
+    container_name: docker-monitor
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      # Mount Docker socket to allow container management
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    # Run as root to access Docker socket (or configure proper group permissions)
+    # For better security, consider adding the container user to the docker group
+    user: root
