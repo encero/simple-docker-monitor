@@ -43,7 +43,7 @@ export function createNotificationManager() {
      */
     async notify(updates) {
       if (!updates || updates.length === 0) {
-        return;
+        return [];
       }
 
       const results = [];

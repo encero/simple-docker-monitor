@@ -51,25 +51,30 @@ export default {
       const updateChecker = updateCheckerModule?.getChecker?.();
 
       if (scheduler && updateChecker) {
-        const intervalMs = config.updateChecker.intervalMinutes * 60 * 1000;
+        const intervalMinutes = Number(config.updateChecker.intervalMinutes);
+        if (!Number.isFinite(intervalMinutes) || intervalMinutes <= 0) {
+          console.warn('Update checker intervalMinutes must be a positive number; skipping scheduled checks');
+        } else {
+          const intervalMs = intervalMinutes * 60 * 1000;
 
-        scheduler.schedule(
-          'check-updates',
-          async () => {
-            console.log('Running scheduled update check...');
-            const newUpdates = await updateChecker.checkForNewUpdates();
-            if (newUpdates.length > 0) {
-              console.log(`Found ${newUpdates.length} new update(s), sending notifications...`);
-              await notificationManager.notify(newUpdates);
-            } else {
-              console.log('No new updates found');
-            }
-          },
-          intervalMs,
-          { runImmediately: true }
-        );
+          scheduler.schedule(
+            'check-updates',
+            async () => {
+              console.log('Running scheduled update check...');
+              const newUpdates = await updateChecker.checkForNewUpdates();
+              if (newUpdates.length > 0) {
+                console.log(`Found ${newUpdates.length} new update(s), sending notifications...`);
+                await notificationManager.notify(newUpdates);
+              } else {
+                console.log('No new updates found');
+              }
+            },
+            intervalMs,
+            { runImmediately: true }
+          );
 
-        console.log(`Scheduled update checks every ${config.updateChecker.intervalMinutes} minutes`);
+          console.log(`Scheduled update checks every ${intervalMinutes} minutes`);
+        }
       }
     }
 

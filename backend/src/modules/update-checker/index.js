@@ -13,6 +13,7 @@ export default {
   init(context) {
     if (!context.config.updateChecker.enabled) {
       console.log('Update checker is disabled');
+      updateChecker = null;
       return;
     }
 

@@ -19,11 +19,23 @@ describe('Discord Webhook Provider', () => {
     it('should enable provider when webhook URL is configured', async () => {
       await provider.init({
         discord: {
+          enabled: true,
           webhookUrl: 'https://discord.com/api/webhooks/123/abc',
         },
       });
 
       expect(provider.isEnabled()).toBe(true);
+    });
+
+    it('should disable provider when discord.enabled is false', async () => {
+      await provider.init({
+        discord: {
+          enabled: false,
+          webhookUrl: 'https://discord.com/api/webhooks/123/abc',
+        },
+      });
+
+      expect(provider.isEnabled()).toBe(false);
     });
 
     it('should disable provider when webhook URL is missing', async () => {
@@ -43,6 +55,7 @@ describe('Discord Webhook Provider', () => {
     it('should disable provider when webhook URL format is invalid', async () => {
       await provider.init({
         discord: {
+          enabled: true,
           webhookUrl: 'https://example.com/not-a-discord-webhook',
         },
       });
@@ -53,6 +66,7 @@ describe('Discord Webhook Provider', () => {
     it('should accept valid Discord webhook URL formats', async () => {
       await provider.init({
         discord: {
+          enabled: true,
           webhookUrl: 'https://discord.com/api/webhooks/1234567890/abcdefgh-ijklmnop',
         },
       });
@@ -75,6 +89,7 @@ describe('Discord Webhook Provider', () => {
     beforeEach(async () => {
       await provider.init({
         discord: {
+          enabled: true,
           webhookUrl: 'https://discord.com/api/webhooks/123/abc',
         },
       });

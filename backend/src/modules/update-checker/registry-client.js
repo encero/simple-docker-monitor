@@ -42,6 +42,11 @@ export function createRegistryClient(imageRef, options = {}) {
      * @returns {Promise<string>} Digest string (sha256:...)
      */
     async getRemoteDigest() {
+      // If image is pinned by digest, return it directly
+      if (imageRef.digest) {
+        return imageRef.digest;
+      }
+
       if (imageRef.isDockerHub()) {
         return await getDockerHubDigest(imageRef);
       } else if (imageRef.isGHCR()) {

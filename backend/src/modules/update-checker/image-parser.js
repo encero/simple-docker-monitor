@@ -24,6 +24,9 @@ export function parseImageReference(imageRef) {
   }
 
   let remaining = imageRef.trim();
+  if (!remaining) {
+    throw new Error('Invalid image reference');
+  }
   let registry = DEFAULT_REGISTRY;
   let repository;
   let tag = DEFAULT_TAG;

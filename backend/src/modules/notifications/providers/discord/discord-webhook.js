@@ -8,6 +8,9 @@ import { BaseNotificationProvider } from '../base-provider.js';
 // Rate limiting: minimum time between webhook calls
 const MIN_INTERVAL_MS = 5000;
 
+// Timeout for webhook requests
+const WEBHOOK_TIMEOUT_MS = 10000;
+
 // Discord webhook URL pattern
 const DISCORD_WEBHOOK_PATTERN = /^https:\/\/discord\.com\/api\/webhooks\/\d+\/[\w-]+$/;
 
@@ -31,6 +34,12 @@ export class DiscordWebhookProvider extends BaseNotificationProvider {
   }
 
   async init(config) {
+    if (!config.discord?.enabled) {
+      console.log('Discord webhook provider disabled by config');
+      this.enabled = false;
+      return;
+    }
+
     if (!config.discord?.webhookUrl) {
       console.log('Discord webhook URL not configured, provider disabled');
       this.enabled = false;
@@ -66,9 +75,13 @@ export class DiscordWebhookProvider extends BaseNotificationProvider {
 
     const embed = this.createEmbed(updates);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
+
     try {
       const response = await fetch(this.webhookUrl, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -76,6 +89,7 @@ export class DiscordWebhookProvider extends BaseNotificationProvider {
           embeds: [embed],
         }),
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const text = await response.text();
@@ -85,6 +99,7 @@ export class DiscordWebhookProvider extends BaseNotificationProvider {
       this.lastSentTime = Date.now();
       console.log(`Discord notification sent for ${updates.length} update(s)`);
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('Failed to send Discord webhook:', error);
       throw error;
     }
