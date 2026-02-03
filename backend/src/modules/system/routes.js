@@ -25,7 +25,11 @@ export function createSystemRoutes(docker) {
       });
     } catch (error) {
       console.error('Error fetching system info:', error);
-      res.status(500).json({ error: 'Failed to fetch system info', details: error.message });
+      const payload = { error: 'Failed to fetch system info' };
+      if (process.env.NODE_ENV !== 'production') {
+        payload.details = error.message;
+      }
+      res.status(500).json(payload);
     }
   });
 

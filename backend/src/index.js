@@ -51,6 +51,7 @@ export async function createApp(docker = null) {
     setDockerClient(docker);
   } else {
     docker = createDockerClient();
+    setDockerClient(docker);
   }
 
   // Clear any previously registered modules (for testing)
@@ -77,15 +78,17 @@ export async function createApp(docker = null) {
     res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
   });
 
-  // Graceful shutdown
-  const shutdown = async () => {
-    console.log('Shutting down...');
-    await shutdownModules();
-    process.exit(0);
-  };
+  // Graceful shutdown (skip in test environment to avoid listener accumulation)
+  if (process.env.NODE_ENV !== 'test') {
+    const shutdown = async () => {
+      console.log('Shutting down...');
+      await shutdownModules();
+      process.exit(0);
+    };
 
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
+  }
 
   return app;
 }
