@@ -3,6 +3,30 @@
  * Supports Docker Hub, GHCR, and generic v2 registries
  */
 
+// Default timeout for registry requests (30 seconds)
+const FETCH_TIMEOUT_MS = 30000;
+
+/**
+ * Fetch with timeout support
+ * @param {string} url - URL to fetch
+ * @param {Object} options - Fetch options
+ * @returns {Promise<Response>}
+ */
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 /**
  * Create a registry client for the given parsed image reference
  * @param {Object} imageRef - Parsed image reference from image-parser
@@ -34,10 +58,10 @@ export function createRegistryClient(imageRef, options = {}) {
  */
 async function getDockerHubToken(repository) {
   const tokenUrl = `https://auth.docker.io/token?service=registry.docker.io&scope=repository:${repository}:pull`;
-  const response = await fetch(tokenUrl);
+  const response = await fetchWithTimeout(tokenUrl);
 
   if (!response.ok) {
-    throw new Error(`Failed to get Docker Hub token: ${response.status}`);
+    throw new Error(`Failed to get Docker Hub token for ${repository}: ${response.status}`);
   }
 
   const data = await response.json();
@@ -51,7 +75,7 @@ async function getDockerHubDigest(imageRef) {
   const token = await getDockerHubToken(imageRef.repository);
   const manifestUrl = `https://registry-1.docker.io/v2/${imageRef.repository}/manifests/${imageRef.tag}`;
 
-  const response = await fetch(manifestUrl, {
+  const response = await fetchWithTimeout(manifestUrl, {
     headers: {
       'Authorization': `Bearer ${token}`,
       // Request manifest list or OCI index to get the correct digest
@@ -65,13 +89,13 @@ async function getDockerHubDigest(imageRef) {
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to get Docker Hub manifest: ${response.status}`);
+    throw new Error(`Failed to get manifest for ${imageRef.repository}:${imageRef.tag}: ${response.status}`);
   }
 
   // The digest is returned in the Docker-Content-Digest header
   const digest = response.headers.get('docker-content-digest');
   if (!digest) {
-    throw new Error('No digest returned from Docker Hub');
+    throw new Error(`No digest returned for ${imageRef.repository}:${imageRef.tag}`);
   }
 
   return digest;
@@ -97,19 +121,19 @@ async function getGHCRDigest(imageRef, token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(manifestUrl, { headers });
+  const response = await fetchWithTimeout(manifestUrl, { headers });
 
   if (response.status === 401 && !token) {
-    throw new Error('GHCR requires authentication. Set GHCR_TOKEN environment variable.');
+    throw new Error(`GHCR requires authentication for ${imageRef.repository}:${imageRef.tag}. Set GHCR_TOKEN environment variable.`);
   }
 
   if (!response.ok) {
-    throw new Error(`Failed to get GHCR manifest: ${response.status}`);
+    throw new Error(`Failed to get manifest for ghcr.io/${imageRef.repository}:${imageRef.tag}: ${response.status}`);
   }
 
   const digest = response.headers.get('docker-content-digest');
   if (!digest) {
-    throw new Error('No digest returned from GHCR');
+    throw new Error(`No digest returned for ghcr.io/${imageRef.repository}:${imageRef.tag}`);
   }
 
   return digest;
@@ -122,7 +146,7 @@ async function getGenericRegistryDigest(imageRef) {
   const registryUrl = imageRef.getRegistryUrl();
   const manifestUrl = `${registryUrl}/v2/${imageRef.repository}/manifests/${imageRef.tag}`;
 
-  const response = await fetch(manifestUrl, {
+  const response = await fetchWithTimeout(manifestUrl, {
     headers: {
       'Accept': [
         'application/vnd.docker.distribution.manifest.list.v2+json',
@@ -134,12 +158,12 @@ async function getGenericRegistryDigest(imageRef) {
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to get manifest from ${registryUrl}: ${response.status}`);
+    throw new Error(`Failed to get manifest for ${imageRef.registry}/${imageRef.repository}:${imageRef.tag}: ${response.status}`);
   }
 
   const digest = response.headers.get('docker-content-digest');
   if (!digest) {
-    throw new Error(`No digest returned from ${registryUrl}`);
+    throw new Error(`No digest returned for ${imageRef.registry}/${imageRef.repository}:${imageRef.tag}`);
   }
 
   return digest;

@@ -8,6 +8,21 @@ import { BaseNotificationProvider } from '../base-provider.js';
 // Rate limiting: minimum time between webhook calls
 const MIN_INTERVAL_MS = 5000;
 
+// Discord webhook URL pattern
+const DISCORD_WEBHOOK_PATTERN = /^https:\/\/discord\.com\/api\/webhooks\/\d+\/[\w-]+$/;
+
+/**
+ * Validate Discord webhook URL format
+ * @param {string} url - URL to validate
+ * @returns {boolean} True if valid
+ */
+function isValidWebhookUrl(url) {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+  return DISCORD_WEBHOOK_PATTERN.test(url);
+}
+
 export class DiscordWebhookProvider extends BaseNotificationProvider {
   constructor() {
     super('discord-webhook');
@@ -18,6 +33,12 @@ export class DiscordWebhookProvider extends BaseNotificationProvider {
   async init(config) {
     if (!config.discord?.webhookUrl) {
       console.log('Discord webhook URL not configured, provider disabled');
+      this.enabled = false;
+      return;
+    }
+
+    if (!isValidWebhookUrl(config.discord.webhookUrl)) {
+      console.warn('Invalid Discord webhook URL format, provider disabled. Expected: https://discord.com/api/webhooks/<id>/<token>');
       this.enabled = false;
       return;
     }

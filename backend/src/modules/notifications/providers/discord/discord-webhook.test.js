@@ -39,6 +39,26 @@ describe('Discord Webhook Provider', () => {
 
       expect(provider.isEnabled()).toBe(false);
     });
+
+    it('should disable provider when webhook URL format is invalid', async () => {
+      await provider.init({
+        discord: {
+          webhookUrl: 'https://example.com/not-a-discord-webhook',
+        },
+      });
+
+      expect(provider.isEnabled()).toBe(false);
+    });
+
+    it('should accept valid Discord webhook URL formats', async () => {
+      await provider.init({
+        discord: {
+          webhookUrl: 'https://discord.com/api/webhooks/1234567890/abcdefgh-ijklmnop',
+        },
+      });
+
+      expect(provider.isEnabled()).toBe(true);
+    });
   });
 
   describe('sendUpdateNotification', () => {

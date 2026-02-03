@@ -92,10 +92,7 @@ export function parseImageReference(imageRef) {
       if (registry === DEFAULT_REGISTRY) {
         return 'https://registry-1.docker.io';
       }
-      // For other registries, assume HTTPS
-      if (registry.startsWith('http://') || registry.startsWith('https://')) {
-        return registry;
-      }
+      // Registry names in image references don't include schemes, assume HTTPS
       return `https://${registry}`;
     },
     // Check if this is a Docker Hub image

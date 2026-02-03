@@ -18,6 +18,40 @@ export function createDiscordBot(config, dependencies) {
   let client = null;
   let isReady = false;
 
+  /**
+   * Register slash commands with Discord API
+   * @param {string} applicationId - The bot's application ID
+   */
+  async function registerCommands(applicationId) {
+    const commands = [
+      new SlashCommandBuilder()
+        .setName('check-updates')
+        .setDescription('Check for Docker image updates now'),
+    ].map(cmd => cmd.toJSON());
+
+    const rest = new REST({ version: '10' }).setToken(botToken);
+
+    try {
+      if (guildId) {
+        // Register for specific guild (faster for development)
+        await rest.put(
+          Routes.applicationGuildCommands(applicationId, guildId),
+          { body: commands }
+        );
+        console.log('Registered guild commands');
+      } else {
+        // Register global commands
+        await rest.put(
+          Routes.applicationCommands(applicationId),
+          { body: commands }
+        );
+        console.log('Registered global commands');
+      }
+    } catch (error) {
+      console.error('Failed to register Discord commands:', error);
+    }
+  }
+
   return {
     /**
      * Start the bot
@@ -32,12 +66,11 @@ export function createDiscordBot(config, dependencies) {
         intents: [GatewayIntentBits.Guilds],
       });
 
-      // Register commands
-      await this.registerCommands();
-
       // Set up event handlers
-      client.once('ready', () => {
+      client.once('ready', async () => {
         console.log(`Discord bot logged in as ${client.user.tag}`);
+        // Register commands after login when we have the application ID
+        await registerCommands(client.user.id);
         isReady = true;
       });
 
@@ -52,36 +85,6 @@ export function createDiscordBot(config, dependencies) {
       // Login
       await client.login(botToken);
       return true;
-    },
-
-    /**
-     * Register slash commands
-     */
-    async registerCommands() {
-      const commands = [
-        new SlashCommandBuilder()
-          .setName('check-updates')
-          .setDescription('Check for Docker image updates now'),
-      ].map(cmd => cmd.toJSON());
-
-      const rest = new REST({ version: '10' }).setToken(botToken);
-
-      try {
-        if (guildId) {
-          // Register for specific guild (faster for development)
-          await rest.put(
-            Routes.applicationGuildCommands(client?.user?.id || 'placeholder', guildId),
-            { body: commands }
-          );
-          console.log('Registered guild commands');
-        } else {
-          // Note: We need the client to be ready to get the application ID
-          // For global commands, this will be called after login
-          console.log('Discord bot will register global commands after login');
-        }
-      } catch (error) {
-        console.error('Failed to register Discord commands:', error);
-      }
     },
 
     /**

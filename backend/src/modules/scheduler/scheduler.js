@@ -29,30 +29,34 @@ export function createScheduler() {
         fn,
         intervalMs,
         intervalId: null,
-        isRunning: false,
+        runningPromise: null, // Promise-based guard to prevent concurrent runs
         lastRun: null,
         lastError: null,
         runCount: 0,
       };
 
-      // Wrapper function with error handling
+      // Wrapper function with error handling and concurrency guard
       const runJob = async () => {
-        if (isShuttingDown || job.isRunning) {
+        if (isShuttingDown || job.runningPromise) {
           return;
         }
 
-        job.isRunning = true;
-        try {
-          await fn();
-          job.lastRun = new Date();
-          job.lastError = null;
-          job.runCount++;
-        } catch (error) {
-          job.lastError = error;
-          console.error(`Scheduler job "${name}" failed:`, error);
-        } finally {
-          job.isRunning = false;
-        }
+        // Use a Promise as a guard to prevent concurrent execution
+        job.runningPromise = (async () => {
+          try {
+            await fn();
+            job.lastRun = new Date();
+            job.lastError = null;
+            job.runCount++;
+          } catch (error) {
+            job.lastError = error;
+            console.error(`Scheduler job "${name}" failed:`, error);
+          } finally {
+            job.runningPromise = null;
+          }
+        })();
+
+        await job.runningPromise;
       };
 
       // Start the interval
@@ -95,22 +99,25 @@ export function createScheduler() {
         throw new Error(`Job "${name}" not found`);
       }
 
-      if (job.isRunning) {
+      if (job.runningPromise) {
         throw new Error(`Job "${name}" is already running`);
       }
 
-      job.isRunning = true;
-      try {
-        await job.fn();
-        job.lastRun = new Date();
-        job.lastError = null;
-        job.runCount++;
-      } catch (error) {
-        job.lastError = error;
-        throw error;
-      } finally {
-        job.isRunning = false;
-      }
+      job.runningPromise = (async () => {
+        try {
+          await job.fn();
+          job.lastRun = new Date();
+          job.lastError = null;
+          job.runCount++;
+        } catch (error) {
+          job.lastError = error;
+          throw error;
+        } finally {
+          job.runningPromise = null;
+        }
+      })();
+
+      await job.runningPromise;
     },
 
     /**
@@ -127,7 +134,7 @@ export function createScheduler() {
       return {
         name: job.name,
         intervalMs: job.intervalMs,
-        isRunning: job.isRunning,
+        isRunning: job.runningPromise !== null,
         lastRun: job.lastRun,
         lastError: job.lastError?.message || null,
         runCount: job.runCount,
@@ -156,19 +163,17 @@ export function createScheduler() {
       }
 
       // Wait for any running jobs to complete
-      const runningJobs = Array.from(jobs.values()).filter(j => j.isRunning);
-      if (runningJobs.length > 0) {
-        console.log(`Waiting for ${runningJobs.length} running job(s) to complete...`);
-        // Give jobs a chance to complete (max 5 seconds)
-        const maxWait = 5000;
-        const start = Date.now();
-        while (Date.now() - start < maxWait) {
-          const stillRunning = Array.from(jobs.values()).filter(j => j.isRunning);
-          if (stillRunning.length === 0) {
-            break;
-          }
-          await new Promise(r => setTimeout(r, 100));
-        }
+      const runningPromises = Array.from(jobs.values())
+        .filter(j => j.runningPromise)
+        .map(j => j.runningPromise);
+
+      if (runningPromises.length > 0) {
+        console.log(`Waiting for ${runningPromises.length} running job(s) to complete...`);
+        // Wait for all running jobs with a timeout
+        await Promise.race([
+          Promise.all(runningPromises),
+          new Promise(r => setTimeout(r, 5000)), // Max 5 second wait
+        ]);
       }
 
       jobs.clear();

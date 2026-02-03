@@ -36,10 +36,13 @@ describe('Registry Client', () => {
       expect(digest).toBe('sha256:abc123');
       expect(global.fetch).toHaveBeenCalledTimes(2);
 
-      // Check token request
+      // Check token request (includes signal for timeout)
       expect(global.fetch).toHaveBeenNthCalledWith(
         1,
-        expect.stringContaining('auth.docker.io/token')
+        expect.stringContaining('auth.docker.io/token'),
+        expect.objectContaining({
+          signal: expect.any(AbortSignal),
+        })
       );
 
       // Check manifest request
@@ -50,6 +53,7 @@ describe('Registry Client', () => {
           headers: expect.objectContaining({
             'Authorization': 'Bearer test-token',
           }),
+          signal: expect.any(AbortSignal),
         })
       );
     });
@@ -63,7 +67,7 @@ describe('Registry Client', () => {
         status: 403,
       });
 
-      await expect(client.getRemoteDigest()).rejects.toThrow('Failed to get Docker Hub token: 403');
+      await expect(client.getRemoteDigest()).rejects.toThrow('Failed to get Docker Hub token for library/nginx: 403');
     });
 
     it('should handle Docker Hub manifest failure', async () => {
@@ -80,7 +84,7 @@ describe('Registry Client', () => {
         status: 404,
       });
 
-      await expect(client.getRemoteDigest()).rejects.toThrow('Failed to get Docker Hub manifest: 404');
+      await expect(client.getRemoteDigest()).rejects.toThrow('Failed to get manifest for library/nginx:latest: 404');
     });
   });
 
@@ -103,6 +107,7 @@ describe('Registry Client', () => {
           headers: expect.objectContaining({
             'Authorization': 'Bearer ghp_token123',
           }),
+          signal: expect.any(AbortSignal),
         })
       );
     });
@@ -135,7 +140,9 @@ describe('Registry Client', () => {
       expect(digest).toBe('sha256:custom123');
       expect(global.fetch).toHaveBeenCalledWith(
         'https://my-registry.com/v2/my-image/manifests/v1',
-        expect.any(Object)
+        expect.objectContaining({
+          signal: expect.any(AbortSignal),
+        })
       );
     });
 
